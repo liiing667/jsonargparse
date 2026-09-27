@@ -74,6 +74,36 @@ def merge_config(parser, source: Namespace, target: Namespace) -> Namespace:
     return target
 
 
+def merge_config_by_precedence(parser, source: Namespace, target: Namespace) -> Namespace:
+    """Merges two configurations keeping, per key, the value from the highest precedence source.
+
+    The precedence of sources is: command line > environment variables > config files > defaults
+    (see ``source_precedence``). For keys with the same precedence on both sides, the source value
+    wins, the same as ``merge_config``.
+
+    Args:
+        parser: The parser object.
+        source: The configuration from which to merge.
+        target: The configuration into which to merge.
+
+    Returns:
+        A new object with the merged configuration.
+    """
+    from ._namespace import get_provenance, source_precedence
+
+    source = source.clone()
+    source_provenance = get_provenance(source, items=False)
+    target_provenance = get_provenance(target, items=False)
+    for key in list(source.keys()):
+        if key not in target:
+            continue
+        source_rank = source_precedence(source_provenance.get(key))
+        target_rank = source_precedence(target_provenance.get(key))
+        if source_rank < target_rank:
+            source.pop(key)
+    return merge_config(parser, source, target)
+
+
 def _config_path_id(cfg_path: Path) -> tuple[str, str]:
     path_id = cfg_path.absolute
     if not (cfg_path.is_url or cfg_path.is_fsspec):

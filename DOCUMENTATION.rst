@@ -238,8 +238,17 @@ sources in the following list override earlier ones:
 2. Existing default config files in the order defined in
    ``default_config_files``, e.g. ``~/.config/myapp.yaml``.
 3. Full config environment variable, e.g. ``APP_CONFIG``.
-4. Individual key environment variables, e.g. ``APP_OPT1``.
-5. Command line arguments in order left to right (might include config files).
+4. Config files given in the command line, in order left to right.
+5. Individual key environment variables, e.g. ``APP_OPT1``.
+6. Individual key command line arguments.
+
+The precedence is pinned: a source later in the list always overrides an
+earlier one, independently of the order in which they are parsed. In
+particular, a command line argument overrides a value from a config file no
+matter if the argument is given before or after the config argument. Within a
+config file that includes another config file, the values of the including
+file override the included ones, independently of the order of keys in the
+file.
 
 Some of these sources might not apply, depending on the parse method used (see
 :class:`.ArgumentParser`) and how the parser was built. Environment variables
@@ -1359,11 +1368,11 @@ the source code. They are always parsed first, so any command line argument
 overrides their values.
 
 An argument can also be added to give a config file path explicitly. This does
-not disable ``default_config_files``. The config argument is parsed at its
-position among the command line arguments, so arguments after it override the
-values from that config file. It can be given several times, each one overriding
-the previous. Using the example parser from :ref:`nested-namespaces`, a config
-file in YAML format could be:
+not disable ``default_config_files``. Values from command line arguments always
+override the values from config files, independently of the position of the
+config argument among the command line arguments. The config argument can be
+given several times, each one overriding the previous. Using the example parser
+from :ref:`nested-namespaces`, a config file in YAML format could be:
 
 .. code-block:: yaml
 
@@ -1396,7 +1405,7 @@ Adding a config file argument and parsing some arguments then gives:
     >>> parser.add_argument("--config", action="config")  # doctest: +IGNORE_RESULT
     >>> cfg = parser.parse_args(["--lev1.opt1", "from arg 1", "--config", "example.yaml", "--lev1.opt2", "from arg 2"])
     >>> cfg.lev1.opt1
-    'from yaml 1'
+    'from arg 1'
     >>> cfg.lev1.opt2
     'from arg 2'
 

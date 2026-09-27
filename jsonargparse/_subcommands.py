@@ -10,7 +10,7 @@ from ._actions import filter_non_parsing_actions
 from ._common import parsing_defaults, single_subcommand
 from ._namespace import Namespace, NSKeyError, split_key, split_key_root
 from ._type_checking import ActionsContainer, ArgumentParser
-from ._util import merge_config
+from ._util import merge_config_by_precedence
 
 __all__ = ["ActionSubCommands"]
 
@@ -288,7 +288,10 @@ def handle_subcommands(
 
         # Update all subcommand settings
         if subnamespace is not None:
-            cfg[key] = merge_config(subparser, cfg.get(key, Namespace()), subnamespace)
+            # Merging by precedence makes sure that values inherited from the subcommand parser
+            # (its environment variables and defaults) never override higher precedence values
+            # already set at the parent level, e.g. explicit command line arguments.
+            cfg[key] = merge_config_by_precedence(subparser, cfg.get(key, Namespace()), subnamespace)
 
         # Handle inner subcommands
         if subparser._subparsers is not None:

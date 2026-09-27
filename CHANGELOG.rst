@@ -108,6 +108,14 @@ Fixed
 - Subcommand parsers not logging when the logger of the parent parser is set
   after adding the subcommands (`#989
   <https://github.com/mauvilsa/jsonargparse/pull/989>`__).
+- The precedence of sources was order dependent, e.g. a config file could
+  override an environment variable or a command line argument given before the
+  config argument. The precedence is now pinned: command line > environment
+  variables > config files > defaults, and values inherited from subcommand
+  parsers never override higher precedence values already set at the parent
+  level. Within a config file that includes another config file, the values of
+  the including file now always override the included ones, independently of
+  the order of keys in the file.
 
 Changed
 ^^^^^^^
