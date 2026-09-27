@@ -242,7 +242,7 @@ def test_parse_object_config(parser, tmp_cwd):
     cfg = parser.parse_object({"b": 0, "cfg": str(path), "a": 3})
     popped_cfg = cfg.pop("cfg")
     assert popped_cfg[0].relative == "config.json"
-    assert cfg == Namespace(a=3, b=2)
+    assert cfg == Namespace(a=3, b=0)
 
 
 def test_parse_object_nested(parser):
@@ -486,6 +486,7 @@ def test_precedence_of_sources(tmp_cwd, subtests):
     with subtests.test("parse_path environment variable"), patch.dict(os.environ, env):
         assert "from env var" == parser.parse_path(input2_config_file).op1
     env["APP_CFG"] = str(input2_config_file)
+    del env["APP_OP1"]
     with subtests.test("parse_path input config file"), patch.dict(os.environ, env):
         assert "from input config file" == parser.parse_path(input1_config_file).op1
     default_config_file.unlink()
@@ -507,8 +508,8 @@ def test_precedence_of_sources(tmp_cwd, subtests):
         assert "from arg" == parser.parse_args(["--op1", "from arg"]).op1
     with subtests.test("parse_args argument override config"), patch.dict(os.environ, env):
         assert "from arg" == parser.parse_args([f"--cfg={input1_config_file}", "--op1=from arg"]).op1
-    with subtests.test("parse_args config override argument"), patch.dict(os.environ, env):
-        assert "from input config file" == parser.parse_args(["--op1=from arg", f"--cfg={input1_config_file}"]).op1
+    with subtests.test("parse_args argument before config still wins"), patch.dict(os.environ, env):
+        assert "from arg" == parser.parse_args(["--op1=from arg", f"--cfg={input1_config_file}"]).op1
 
     with subtests.test("parse_args config paths"), patch.dict(os.environ, env):
         cfg = parser.parse_args([f"--cfg={input1_config_file}"])

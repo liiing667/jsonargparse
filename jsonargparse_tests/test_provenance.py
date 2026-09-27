@@ -236,6 +236,138 @@ def test_later_config_file_overrides(parser, tmp_cwd):
     }
 
 
+def test_precedence_command_line_over_config_any_order(parser, tmp_cwd):
+    parser.add_argument("--val", type=int, default=0)
+    Path("cfg.json").write_text('{"val": 5}')
+    for args in (["--val=7", "--config=cfg.json"], ["--config=cfg.json", "--val=7"]):
+        assert get_sources(parser.parse_args(args)) == {"val": "command line argument --val"}
+
+
+def test_precedence_env_over_config_file(parser, tmp_cwd, monkeypatch):
+    parser.default_env = True
+    parser.add_argument("--val", type=int, default=0)
+    Path("cfg.json").write_text('{"val": 5}')
+    monkeypatch.setenv("APP_VAL", "7")
+    assert get_sources(parser.parse_args(["--config=cfg.json"])) == {"val": "environment variable APP_VAL"}
+
+
+def test_precedence_env_over_config_string(parser, monkeypatch):
+    parser.default_env = True
+    parser.add_argument("--val", type=int, default=0)
+    monkeypatch.setenv("APP_VAL", "7")
+    assert get_sources(parser.parse_string('{"val": 5}')) == {"val": "environment variable APP_VAL"}
+
+
+def test_precedence_config_file_over_default_config_file(parser, tmp_cwd):
+    parser.add_argument("--val", type=int, default=0)
+    Path("defaults.json").write_text('{"val": 3}')
+    Path("cfg.json").write_text('{"val": 5}')
+    parser.default_config_files = ["defaults.json"]
+    assert get_sources(parser.parse_args(["--config=cfg.json"])) == {"val": "config file cfg.json"}
+
+
+def test_precedence_config_file_over_default(parser, tmp_cwd):
+    parser.add_argument("--val", type=int, default=3)
+    Path("cfg.json").write_text('{"val": 5}')
+    assert get_sources(parser.parse_args(["--config=cfg.json"])) == {"val": "config file cfg.json"}
+
+
+def test_included_config_does_not_override_including_config(parser, tmp_cwd):
+    parser.add_argument("--a", type=int, default=0)
+    parser.add_argument("--b", type=int, default=0)
+    Path("inner.json").write_text('{"a": 2, "b": 2}')
+    for outer in ('{"a": 1, "config": "inner.json"}', '{"config": "inner.json", "a": 1}'):
+        Path("outer.json").write_text(outer)
+        assert get_sources(parser.parse_args(["--config=outer.json"])) == {
+            "a": "config file outer.json",
+            "b": "config file inner.json",
+        }
+
+
+# precedence between sources with subcommands
+
+
+def subcommands_parser(**kwargs):
+    subparser = ArgumentParser(exit_on_error=False, parser_mode="json")
+    subparser.add_argument("--opt", type=str, default="sub_default")
+    parser = ArgumentParser(exit_on_error=False, parser_mode="json", env_prefix="APP", **kwargs)
+    parser.add_argument("--config", action="config")
+    subcommands = parser.add_subcommands()
+    subcommands.add_subcommand("cmd", subparser)
+    return parser
+
+
+def test_subcommand_default(tmp_cwd):
+    parser = subcommands_parser()
+    assert get_sources(parser.parse_args(["cmd"])) == {
+        "subcommand": "command line argument subcommand",
+        "cmd.opt": "default",
+    }
+
+
+def test_subcommand_default_does_not_override_parent_config(tmp_cwd):
+    parser = subcommands_parser()
+    Path("cfg.json").write_text('{"cmd": {"opt": "from_config"}}')
+    assert get_sources(parser.parse_args(["--config=cfg.json", "cmd"])) == {
+        "subcommand": "command line argument subcommand",
+        "cmd.opt": "config file cfg.json",
+    }
+
+
+def test_subcommand_env_overrides_parent_config(tmp_cwd, monkeypatch):
+    parser = subcommands_parser(default_env=True)
+    Path("cfg.json").write_text('{"cmd": {"opt": "from_config"}}')
+    monkeypatch.setenv("APP_CMD__OPT", "from_env")
+    assert get_sources(parser.parse_args(["--config=cfg.json", "cmd"])) == {
+        "subcommand": "command line argument subcommand",
+        "cmd.opt": "environment variable APP_CMD__OPT",
+    }
+
+
+def test_subcommand_command_line_overrides_all(tmp_cwd, monkeypatch):
+    parser = subcommands_parser(default_env=True)
+    Path("cfg.json").write_text('{"cmd": {"opt": "from_config"}}')
+    monkeypatch.setenv("APP_CMD__OPT", "from_env")
+    assert get_sources(parser.parse_args(["--config=cfg.json", "cmd", "--opt=from_cli"])) == {
+        "subcommand": "command line argument subcommand",
+        "cmd.opt": "command line argument --opt",
+    }
+
+
+def subsubcommands_parser(**kwargs):
+    subsubparser = ArgumentParser(exit_on_error=False, parser_mode="json")
+    subsubparser.add_argument("--x", type=int, default=0)
+    subparser = ArgumentParser(exit_on_error=False, parser_mode="json")
+    parser = ArgumentParser(exit_on_error=False, parser_mode="json", env_prefix="APP", **kwargs)
+    parser.add_argument("--config", action="config")
+    subcommands = parser.add_subcommands()
+    subcommands.add_subcommand("cmd", subparser)
+    subsubcommands = subparser.add_subcommands()
+    subsubcommands.add_subcommand("inner", subsubparser)
+    return parser
+
+
+def test_subsubcommand_default_does_not_override_parent_config(tmp_cwd):
+    parser = subsubcommands_parser()
+    Path("cfg.json").write_text('{"cmd": {"inner": {"x": 5}}}')
+    assert get_sources(parser.parse_args(["--config=cfg.json", "cmd", "inner"])) == {
+        "subcommand": "command line argument subcommand",
+        "cmd.subcommand": "command line argument subcommand",
+        "cmd.inner.x": "config file cfg.json",
+    }
+
+
+def test_subsubcommand_env_overrides_parent_config(tmp_cwd, monkeypatch):
+    parser = subsubcommands_parser(default_env=True)
+    Path("cfg.json").write_text('{"cmd": {"inner": {"x": 5}}}')
+    monkeypatch.setenv("APP_CMD__INNER__X", "7")
+    assert get_sources(parser.parse_args(["--config=cfg.json", "cmd", "inner"])) == {
+        "subcommand": "command line argument subcommand",
+        "cmd.subcommand": "command line argument subcommand",
+        "cmd.inner.x": "environment variable APP_CMD__INNER__X",
+    }
+
+
 def test_parse_args_namespace_keeps_provenance(parser, tmp_cwd):
     parser.add_argument("--a", type=int, default=0)
     parser.add_argument("--b", type=int, default=0)

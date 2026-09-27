@@ -32,6 +32,26 @@ class ValueSource(NamedTuple):
 value_source: ContextVar[ValueSource | None] = ContextVar("value_source", default=None)
 
 
+# Precedence ranks of the sources of parsed values. When two values for the same key come from
+# different sources, the one with the highest rank always wins, independently of the order in
+# which the sources were applied: command line > environment variables > config files > defaults.
+source_precedence_ranks = {
+    "command line argument": 4,
+    "environment variable": 3,
+    "config file": 2,
+    "config string": 2,
+    "default config file": 2,
+    "default": 1,
+}
+
+
+def source_precedence(source: ValueSource | None) -> int:
+    """Returns the precedence rank of a value source, higher wins when merging configurations."""
+    if source is None:
+        return 0
+    return source_precedence_ranks.get(source.description, 0)
+
+
 @contextmanager
 def value_source_context(source: ValueSource | None) -> Iterator[None]:
     token = value_source.set(source)

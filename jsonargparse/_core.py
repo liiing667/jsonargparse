@@ -111,6 +111,7 @@ from ._util import (
     identity,
     load_config_path_context,
     merge_config,
+    merge_config_by_precedence,
     return_parser_if_captured,
 )
 
@@ -743,7 +744,7 @@ class ArgumentParser(ActionsContainer, argparse.ArgumentParser):
 
             if defaults or env:
                 cfg_base = self._parse_defaults_and_environ(defaults, env)
-                cfg = merge_config(self, cfg, cfg_base)
+                cfg = merge_config_by_precedence(self, cfg, cfg_base)
 
             parsed_cfg = self._parse_common(
                 cfg=cfg,
@@ -1492,7 +1493,9 @@ class ArgumentParser(ActionsContainer, argparse.ArgumentParser):
                 elif isinstance(action, ActionConfigFile):
                     if isinstance(value, str):
                         cfg.pop(action_dest)
-                        preserve = Namespace({k: cfg[k] for k in keys[num:]})
+                        # The including config's own values always take precedence over the
+                        # included config, independently of the order of keys in the config.
+                        preserve = cfg.clone()
                         ActionConfigFile.apply_config(self, cfg, action_dest, value)
                         cfg.update(preserve)
                         continue

@@ -227,6 +227,8 @@ failure is due to a given value, the error message says where it came from, e.g.
 ``Source: config file config.yaml:3`` followed by that line of the file.
 
 
+.. _override-order:
+
 Override order
 --------------
 
@@ -237,9 +239,17 @@ sources in the following list override earlier ones:
 1. Defaults defined in the source code.
 2. Existing default config files in the order defined in
    ``default_config_files``, e.g. ``~/.config/myapp.yaml``.
-3. Full config environment variable, e.g. ``APP_CONFIG``.
+3. Config files, e.g. from a full config environment variable like
+   ``APP_CONFIG`` or from a command line config argument. When multiple config
+   files are given, later ones override earlier ones.
 4. Individual key environment variables, e.g. ``APP_OPT1``.
-5. Command line arguments in order left to right (might include config files).
+5. Command line arguments.
+
+This order is fixed: a value from a source higher in the list always overrides
+values from lower sources, independently of the order in which the sources were
+applied. For example, a command line argument always wins over an environment
+variable and over a config file, even if the config file is given after the
+argument on the command line.
 
 Some of these sources might not apply, depending on the parse method used (see
 :class:`.ArgumentParser`) and how the parser was built. Environment variables
@@ -1360,8 +1370,9 @@ overrides their values.
 
 An argument can also be added to give a config file path explicitly. This does
 not disable ``default_config_files``. The config argument is parsed at its
-position among the command line arguments, so arguments after it override the
-values from that config file. It can be given several times, each one overriding
+position among the command line arguments, though its values never override
+environment variables or command line arguments, independently of that position
+(see :ref:`override-order`). It can be given several times, each one overriding
 the previous. Using the example parser from :ref:`nested-namespaces`, a config
 file in YAML format could be:
 
@@ -1396,7 +1407,7 @@ Adding a config file argument and parsing some arguments then gives:
     >>> parser.add_argument("--config", action="config")  # doctest: +IGNORE_RESULT
     >>> cfg = parser.parse_args(["--lev1.opt1", "from arg 1", "--config", "example.yaml", "--lev1.opt2", "from arg 2"])
     >>> cfg.lev1.opt1
-    'from yaml 1'
+    'from arg 1'
     >>> cfg.lev1.opt2
     'from arg 2'
 

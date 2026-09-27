@@ -43,6 +43,12 @@ Added
 
 Fixed
 ^^^^^
+- The override order of value sources is now fixed: command line arguments
+  override environment variables, which override config files, which override
+  defaults. Previously a config file could override an environment variable or
+  a command line argument given before it, and values inherited by a subcommand
+  parser could override higher precedence values already set at the parent
+  level.
 - Parsing a list took time quadratic in its number of items (`#975
   <https://github.com/mauvilsa/jsonargparse/pull/975>`__).
 - ``shtab`` bash completions not listing the choices on ``<TAB><TAB>`` when

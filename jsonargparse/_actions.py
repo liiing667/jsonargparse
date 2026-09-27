@@ -34,6 +34,7 @@ from ._util import (
     iter_to_set_str,
     load_config_path_context,
     merge_config,
+    merge_config_by_precedence,
     parse_value_or_config,
 )
 
@@ -138,7 +139,7 @@ class ActionConfigFile(Action):
                     raise TypeError(f'Parser key "{dest}": {ex_str}') from ex_str
             else:
                 cfg_file = parser.parse_path(value, **kwargs)
-            cfg_merged = merge_config(parser, cfg_file, cfg)
+            cfg_merged = merge_config_by_precedence(parser, cfg_file, cfg)
             cfg.__dict__.update(cfg_merged.__dict__)
             copy_provenance(cfg_merged, cfg)
             if cfg.get(dest) is get_parsing_setting("unset_sentinel"):
@@ -262,7 +263,7 @@ class _ActionConfigLoad(Action):
         parser, namespace, value = args[:3]
         loaded_value = self._load_config(value, parser)
         if isinstance(namespace.get(self.dest), Namespace):
-            loaded_value = merge_config(
+            loaded_value = merge_config_by_precedence(
                 parser, Namespace({self.dest: loaded_value}), Namespace({self.dest: namespace[self.dest]})
             )[self.dest]
         namespace[self.dest] = loaded_value
